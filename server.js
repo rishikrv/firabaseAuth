@@ -9,14 +9,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialize Firebase Admin SDK
+// ✅ Load and parse the service account from env
+const serviceAccountBuffer = Buffer.from(
+  process.env.SERVICE_ACCOUNT_KEY,
+  "base64"
+);
+const serviceAccount = JSON.parse(serviceAccountBuffer.toString());
+
 admin.initializeApp({
-  credential: admin.credential.cert(require("./serviceAccountKey.json")),
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 
-// STEP A: Send OTP
+// ✅ STEP A: Send OTP
 app.post("/send-otp", async (req, res) => {
   const { phoneNumber } = req.body;
 
@@ -25,18 +31,18 @@ app.post("/send-otp", async (req, res) => {
       `https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=${FIREBASE_API_KEY}`,
       {
         phoneNumber,
-        recaptchaToken: "unused", // only needed in client SDK
+        recaptchaToken: "unused",
       }
     );
     res.json({ sessionInfo: response.data.sessionInfo });
   } catch (err) {
-    res
-      .status(400)
-      .json({ error: err?.response?.data?.error?.message || err.message });
+    res.status(400).json({
+      error: err?.response?.data?.error?.message || err.message,
+    });
   }
 });
 
-// STEP B: Verify OTP and return Firebase custom token
+// ✅ STEP B: Verify OTP and return Firebase custom token
 app.post("/verify-otp", async (req, res) => {
   const { sessionInfo, code } = req.body;
 
@@ -51,19 +57,20 @@ app.post("/verify-otp", async (req, res) => {
 
     const { localId, phoneNumber } = response.data;
 
-    // Generate custom token to use on client
-    const customToken = await admin
-      .auth()
-      .createCustomToken(localId, { phoneNumber });
+    const customToken = await admin.auth().createCustomToken(localId, {
+      phoneNumber,
+    });
 
     res.json({ token: customToken });
   } catch (err) {
-    res
-      .status(400)
-      .json({ error: err?.response?.data?.error?.message || err.message });
+    res.status(400).json({
+      error: err?.response?.data?.error?.message || err.message,
+    });
   }
 });
 
-app.listen(3000, () => {
-  console.log("🚀 Server running on http://localhost:3000");
+// ✅ Server Start
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
